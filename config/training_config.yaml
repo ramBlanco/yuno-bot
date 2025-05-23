@@ -1,0 +1,19 @@
+model:
+  name: "google/flan-t5-base"
+  max_input_length: 512
+  max_output_length: 128
+
+training:
+  output_dir: "models/fine-tuned"
+  batch_size: 8
+  learning_rate: 2e-4
+  num_train_epochs: 3
+  evaluation_strategy: "no"
+  save_strategy: "epoch"
+  logging_dir: "models/fine-tuned/logs"
+  report_to: "none"
+
+data:
+  input_path: "data/processed/qa_dataset.csv"
+  test_size: 0.15
+  seed: 42

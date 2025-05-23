@@ -1,0 +1,11 @@
+accelerate==0.27.2
+transformers==4.39.3
+datasets==3.6.0
+scikit-learn==1.6.1
+pandas==2.2.3
+python-dotenv==1.1.0
+fastapi==0.115.12
+uvicorn==0.34.2
+PyYAML==6.0.2
+hf_xet
+optuna==4.3.0

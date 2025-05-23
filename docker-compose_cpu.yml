@@ -1,0 +1,32 @@
+version: '3.9'
+
+services:
+  trainer:
+    build:
+      context: .
+      dockerfile: Dockerfile.trainer
+    container_name: slack-qa-trainer
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+      - ./config:/app/config
+    environment:
+      - MODEL_NAME=google/flan-t5-base
+    command: python scripts/train.py
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: slack-qa-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./models:/app/models
+      - ./config:/app/config
+    depends_on:
+      - trainer
+    command: uvicorn api:app --host 0.0.0.0 --port 8000 --reload
+
+volumes:
+  models_volume:
