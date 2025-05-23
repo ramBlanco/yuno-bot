@@ -1,0 +1,42 @@
+version: "3.9"
+
+services:
+  trainer:
+    build:
+      context: .
+      dockerfile: Dockerfile.trainer
+    volumes:
+      - ./models:/app/models  # <== exporta el modelo al host
+      - ./data:/app/data      # <== comparte los datasets
+      - ./config:/app/config
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+        limits:
+          memory: 8g  # Cambia según tu RAM real
+    stdin_open: true
+    tty: true
+
+  optimizer:
+    build:
+      context: .
+      dockerfile: Dockerfile.optimize
+    volumes:
+      - ./models:/app/models  # <== exporta el modelo al host
+      - ./data:/app/data      # <== comparte los datasets
+      - ./config:/app/config
+      - ./optimize:/app/optimize
+    environment:
+      - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
