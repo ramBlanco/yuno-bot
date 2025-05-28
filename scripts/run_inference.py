@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # === CONFIG ===
-MODEL_DIR = os.getenv("MODEL_DIR", "models/fine-tuned")
+MODEL_DIR = "models/fine-tuned/cyber"
 MAX_INPUT_LENGTH = 256
 MAX_OUTPUT_LENGTH = 128
 
@@ -26,8 +26,10 @@ def answer_question(question: str) -> str:
     output = model.generate(
         input_ids=inputs.input_ids,
         attention_mask=inputs.attention_mask,
+        no_repeat_ngram_size=3,
+        repetition_penalty=1.5,
         max_length=MAX_OUTPUT_LENGTH,
-        num_beams=4,
+        num_beams=5,
         early_stopping=True
     )
 

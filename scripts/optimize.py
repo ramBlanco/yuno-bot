@@ -10,21 +10,24 @@ from transformers import (
     TrainingArguments,
 )
 from dotenv import load_dotenv
+import torch
 
 load_dotenv()
 
 MODEL_NAME = os.getenv("MODEL_NAME", "google/flan-t5-base")
-DATA_PATH = "data/processed/qa_dataset_reconstructed.csv"
+DATA_PATH = "data/processed/cybersecurity-qa-half.csv"
 OUTPUT_DIR = "models/optuna-tuning"
-BEST_CONFIG_PATH = "optimize/best_config.json"
+BEST_CONFIG_PATH = "optimize/best_config-v1.json"
 MAX_LENGTH = 512
-
 
 print("model name -------> ", MODEL_NAME)
 
-
 # === Load and format dataset ===
-df = pd.read_csv(DATA_PATH)
+df = pd.read_csv(DATA_PATH, delimiter=",")
+df = df.dropna(subset=["question", "answer"])
+print("Dimensions: ")
+print(df.shape)
+
 df["prompt"] = df.apply(lambda row: f"Pregunta: {row['question']}\nRespuesta:", axis=1)
 hf_dataset = Dataset.from_pandas(df[["prompt", "answer"]])
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
@@ -37,17 +40,21 @@ def tokenize(example):
 
 tokenized_dataset = hf_dataset.map(tokenize, remove_columns=hf_dataset.column_names)
 train_test_split = tokenized_dataset.train_test_split(test_size=0.1)
-train_dataset = train_test_split["train"]
-eval_dataset = train_test_split["test"]
 
+# === Subset más pequeño para tuning rápido ===
+train_dataset = train_test_split["train"].select(range(min(5000, len(train_test_split["train"]))))
+eval_dataset = train_test_split["test"].select(range(min(1000, len(train_test_split["test"]))))
 
 # === Función objetivo para Optuna ===
 def objective(trial):
     learning_rate = trial.suggest_float("learning_rate", 1e-5, 5e-4, log=True)
-    batch_size = trial.suggest_categorical("per_device_train_batch_size", [1, 2, 4])
-    num_train_epochs = trial.suggest_int("num_train_epochs", 50, 75, 100)
+    batch_size = trial.suggest_categorical("per_device_train_batch_size", [2, 4])
+    num_train_epochs = trial.suggest_int("num_train_epochs", 3, 5)
+    grad_acc_steps = trial.suggest_categorical("gradient_accumulation_steps", [1, 2])
 
-    model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME)
+    model = AutoModelForSeq2SeqLM.from_pretrained(
+        MODEL_NAME,
+    )
 
     training_args = TrainingArguments(
         output_dir=os.path.join(OUTPUT_DIR, f"trial-{trial.number}"),
@@ -55,10 +62,10 @@ def objective(trial):
         per_device_eval_batch_size=batch_size,
         learning_rate=learning_rate,
         num_train_epochs=num_train_epochs,
-        gradient_accumulation_steps=8,
+        gradient_accumulation_steps=grad_acc_steps,
         warmup_steps=10,
         lr_scheduler_type="cosine",
-        evaluation_strategy="epoch",
+        evaluation_strategy="no",  # 🔽 no eval por epoch
         save_strategy="no",
         logging_strategy="no",
         report_to="none",
@@ -72,12 +79,12 @@ def objective(trial):
         tokenizer=tokenizer,
     )
 
-    eval_result = trainer.train()
+    trainer.train()
     metrics = trainer.evaluate()
     return metrics["eval_loss"]
 
 study = optuna.create_study(direction="minimize")
-study.optimize(objective, n_trials=10)
+study.optimize(objective, n_trials=10, n_jobs=1)
 
 print(f"Best trial:\n  Value: {study.best_trial.value}\n  Params: {study.best_trial.params}")
 

@@ -12,15 +12,16 @@ load_dotenv()
 
 # === CONFIG ===
 MODEL_NAME = os.getenv("MODEL_NAME", "google/flan-t5-base")
-DATA_PATH = "data/processed/qa_dataset_reconstructed.csv"
-OUTPUT_DIR = "models/fine-tuned"
+DATA_PATH = "data/processed/cybersecurity-qa-half.csv"
+OUTPUT_DIR = "models/fine-tuned/cyber"
 MAX_LENGTH = 512
 
 with open("optimize/best_config.json", "r") as f:
     best_params = json.load(f)
 
 # === Load and preprocess dataset ===
-df = pd.read_csv(DATA_PATH)
+df = pd.read_csv(DATA_PATH, delimiter=",")
+df = df.dropna(subset=["question", "answer"])
 
 def format_prompt(row):
     return f"Pregunta: {row['question']}\nRespuesta:"  # estilo Instruct
@@ -70,17 +71,14 @@ training_args = TrainingArguments(
     learning_rate=best_params.get("learning_rate", 5e-5),
     num_train_epochs=best_params.get("num_train_epochs", 3),
 
-    gradient_accumulation_steps=8,
+    gradient_accumulation_steps=1,
     warmup_steps=10,
     lr_scheduler_type="cosine",
     evaluation_strategy="epoch",
-    logging_dir=f"{OUTPUT_DIR}/logs",
-    logging_strategy="steps",
-    logging_steps=10,
+    logging_strategy="no",
     save_strategy="no",
     report_to="none",
 
-    load_best_model_at_end=True,
     metric_for_best_model="eval_loss"
 )
 
